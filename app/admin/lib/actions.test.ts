@@ -2,12 +2,14 @@ import { User } from '@/prisma/generated/client';
 import { prismaMock } from '@/prisma/singleton';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    deleteUser,
-    getSettings,
-    getUsers,
-    saveSettings,
-    setAdmin,
+  deleteUser,
+  getSettings,
+  getUsers,
+  saveSettings,
+  setAdmin,
 } from './actions';
+
+const formSettings = ['mfa', 'allowReg', 'allowUnsplash', 'enableS3'];
 
 const mocks = vi.hoisted(() => ({
   fs: { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn() },
@@ -70,9 +72,9 @@ describe('actions', () => {
   describe('saveSettings', () => {
     it('should save settings to file', async () => {
       const formData = new FormData();
-      formData.set('mfa', 'active');
-      formData.set('allowRegistration', 'active');
-      formData.set('allowUnsplash', 'active');
+      formSettings.forEach((item) => {
+        formData.append(`settings`, item);
+      });
 
       mocks.fs.existsSync.mockReturnValue(false);
       mocks.fs.readFileSync.mockReturnValue(
@@ -85,6 +87,7 @@ describe('actions', () => {
         mfa: true,
         allowReg: true,
         allowUnsplash: true,
+        enableS3: true,
       });
     });
   });
