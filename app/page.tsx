@@ -16,7 +16,6 @@ export default async function Home() {
   }
 
   const breadcrumbs = [{ name: 'Home', href: '/' }];
-
   return (
     <Page>
       <NavHeader></NavHeader>
