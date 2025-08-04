@@ -3,6 +3,7 @@
 import { IconFileSmile, IconMarkdown } from '@tabler/icons-react';
 import { marked } from 'marked';
 import { useEffect, useRef, useState } from 'react';
+import sanitizeHtml from 'sanitize-html';
 import { getNote } from '../../lib/actions';
 import EditorToolbar from './EditorToolbar';
 
@@ -18,9 +19,12 @@ export default function Editor({ noteId, onUpdate }: EditorType) {
   const [isClient, setIsClient] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  const [htmlContent, setHtmlContent] = useState<string>('');
 
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = event.target.value;
+    localStorage.setItem(`note-${noteId}`, newContent);
+    if (newContent === markdown) return;
     saveContent(newContent);
   };
 
@@ -37,17 +41,42 @@ export default function Editor({ noteId, onUpdate }: EditorType) {
     const loadNote = async () => {
       const note = await getNote(noteId);
       if (note) {
-        marked.setOptions({ breaks: true });
         setMarkdown(note.content);
       }
       setIsClient(true);
     };
     loadNote();
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === `note-${noteId}`) {
+        const storedContent = localStorage.getItem(`note-${noteId}`);
+        if (storedContent !== null) {
+          setMarkdown(storedContent);
+          if (textareaRef.current) {
+            textareaRef.current.value = storedContent;
+          }
+        }
+      }
+    });
   }, [noteId]);
 
-  const renderMarkdownToHtml = (markdown: string) => {
-    return { __html: marked(markdown) };
-  };
+  useEffect(() => {
+    const renderMarkdownToHtml = async (markdown: string) => {
+      const html = await marked.parse(markdown, {
+        async: true,
+        gfm: true,
+        breaks: true,
+      });
+      return sanitizeHtml(html);
+    };
+
+    const updateHtmlContent = async () => {
+      const sanitizedHtml = await renderMarkdownToHtml(markdown ?? '');
+      setHtmlContent(sanitizedHtml);
+    };
+
+    updateHtmlContent();
+  }, [markdown]);
 
   return (
     <div className="card">
@@ -132,6 +161,23 @@ export default function Editor({ noteId, onUpdate }: EditorType) {
                 placeholder="Here can be your description"
                 defaultValue={markdown ?? ''}
                 onChange={handleChange}
+                onKeyDown={(event) => {
+                  if (event.key === 'Tab') {
+                    event.preventDefault();
+                    const textarea = textareaRef.current;
+                    if (textarea) {
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      textarea.value =
+                        textarea.value.substring(0, start) +
+                        '\t' +
+                        textarea.value.substring(end);
+                      textarea.selectionStart = textarea.selectionEnd =
+                        start + 1;
+                      saveContent(textarea.value);
+                    }
+                  }
+                }}
               />
             )}
           </div>
@@ -146,11 +192,7 @@ export default function Editor({ noteId, onUpdate }: EditorType) {
             <div className="w-full h-full p-3">
               {markdown ? (
                 <div className="markdown" style={{ minHeight: 400 }}>
-                  <div
-                    dangerouslySetInnerHTML={renderMarkdownToHtml(
-                      markdown ?? ''
-                    )}
-                  ></div>
+                  <div dangerouslySetInnerHTML={{ __html: htmlContent }}></div>
                 </div>
               ) : (
                 <div className="d-flex h-full align-items-center justify-content-center text-secondary opacity-25">
