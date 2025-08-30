@@ -5,6 +5,7 @@ import type { Session, User } from '@/prisma/generated/client';
 import { getSettings } from '@/app/admin/lib/actions';
 import { prisma } from '@/prisma/client';
 import { encodeBase32, encodeHex, hashPassword } from '@/utils/crypto';
+import { randomDelay } from '@/utils/delay';
 import { validateTOTP } from '@/utils/totp';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
@@ -98,12 +99,6 @@ export async function signin(state: FormState, formData: FormData) {
   let userId: number | null = null;
   const MAX_FAILED_ATTEMPTS = 5;
   const LOCK_DURATION = 1000 * 60 * 15; // 15 minutes
-
-  // Helper to add random delay (between 300ms and 1200ms)
-  async function randomDelay() {
-    const ms = 300 + Math.floor(Math.random() * 900);
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
 
   try {
     if (!result.success) {
