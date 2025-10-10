@@ -30,7 +30,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.className} ${geistMono.variable}`}>
-        <MainLayout>{children}</MainLayout>
+        <MainLayout>
+          {children}
+        </MainLayout>
         <script src="/js/tabler.1.4.0.min.js" defer></script>
       </body>
     </html>
