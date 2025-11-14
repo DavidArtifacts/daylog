@@ -5,16 +5,18 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Note } from '@/prisma/generated/client';
 import Editor from './Editor';
 
 const mocks = vi.hoisted(() => ({
-  getNote: vi.fn(),
+  updateNote: vi.fn(),
+  getPictures: vi.fn(),
 }));
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -27,51 +29,51 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 vi.mock('../../lib/actions', () => ({
-  getNote: mocks.getNote,
+  updateNote: mocks.updateNote,
+  getPictures: mocks.getPictures,
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
 }));
 
 describe('Editor', () => {
-  const noteId = 1;
-  const mockNote = { content: 'Test content' };
+  const mockNote = {
+    id: 1,
+    content: 'Initial content',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    boardsId: 1,
+  } as Note;
 
   beforeEach(() => {
     cleanup();
+    vi.useFakeTimers({ toFake: ['setTimeout'], shouldAdvanceTime: true });
+    mocks.getPictures.mockResolvedValueOnce([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('loads and displays note content', async () => {
-    mocks.getNote.mockResolvedValueOnce(mockNote);
-    render(<Editor noteId={noteId} />);
+    render(<Editor note={mockNote} />);
 
     await waitFor(() => {
       expect(screen.getByRole('textbox')).toHaveValue(mockNote.content);
     });
   });
 
-  it('calls onUpdate when content changes', async () => {
-    const onUpdate = vi.fn((content, callback) => callback());
-    mocks.getNote.mockResolvedValueOnce(mockNote);
-    render(<Editor noteId={noteId} onUpdate={onUpdate} />);
+  it('loads pictures at component mount', async () => {
+    render(<Editor note={mockNote} />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('textbox')).toHaveValue(mockNote.content);
-    });
-
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: 'Updated content' },
-    });
-
-    expect(onUpdate).toHaveBeenCalledWith(
-      'Updated content',
-      expect.any(Function)
-    );
+    expect(mocks.getPictures).toHaveBeenCalledWith(mockNote.id);
   });
 
   it('displays saving indicator when content is being saved', async () => {
-    const onUpdate = vi.fn(() => {
-      // Never calls the callback for testing loading...
-    });
-    mocks.getNote.mockResolvedValueOnce(mockNote);
-    render(<Editor noteId={noteId} onUpdate={onUpdate} />);
+    render(<Editor note={mockNote} />);
 
     await waitFor(() => {
       expect(screen.getByRole('textbox')).toHaveValue(mockNote.content);
@@ -84,16 +86,32 @@ describe('Editor', () => {
     expect(screen.getByTitle('Saving changes...')).toBeInTheDocument();
   });
 
-  it('renders markdown preview', async () => {
-    mocks.getNote.mockResolvedValueOnce(mockNote);
-    render(<Editor noteId={noteId} />);
+  it('renders the Editor component', async () => {
+    render(<Editor note={mockNote} />);
 
+    const editor = screen.getByRole('textbox');
     await waitFor(() => {
-      expect(screen.getByRole('textbox')).toHaveValue(mockNote.content);
+      expect(editor).toHaveValue(mockNote.content);
     });
-    
-    expect(
-      screen.getByText('Test content', { selector: 'p' })
-    ).toBeInTheDocument();
+
+    expect(editor).toBeInTheDocument();
+  });
+
+  it('editor updates note after debounce timer', async () => {
+    render(<Editor note={mockNote} />);
+    const editor = screen.getByRole('textbox');
+
+    fireEvent.change(editor, { target: { value: 'First update' } });
+    // skip 1s debounce time
+    vi.advanceTimersByTime(1000);
+
+    fireEvent.change(editor, { target: { value: 'Second update' } });
+    // skip 1s debounce time
+    vi.advanceTimersByTime(1000);
+
+    expect(mocks.updateNote).toHaveBeenCalledWith({
+      ...mockNote,
+      content: 'Second update',
+    });
   });
 });
