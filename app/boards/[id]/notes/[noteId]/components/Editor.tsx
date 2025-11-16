@@ -43,7 +43,7 @@ export default function Editor({ note }: NoteEditorType) {
     });
 
     const loadPictures = async () => {
-      const pictures = await getPictures(note.id);
+      const pictures = await getPictures(note.id) ?? [];
       setPictures(pictures);
     };
 
@@ -187,16 +187,17 @@ export default function Editor({ note }: NoteEditorType) {
                 onClick: () => {
                   handlePlaceImage(getImageUrlOrFile(note.imageUrl!));
                 },
-                onDelete: () => {
-                  deleteImage(note.id, note.imageUrl);
+                onDelete: async () => {
+                  await deleteImage(note.id, note.imageUrl);
                   router.prefetch(`/boards/${note.boardsId}/notes/${note.id}`);
                   router.refresh();
                 },
               })}
             {pictures.map((picture, key) => (
               <PicturePreview
-                onDelete={() => handleDeletePicture(picture.id)}
                 key={key}
+                pictureId={picture.id}
+                onDelete={() => handleDeletePicture(picture.id)}
                 imageUrl={picture.imageUrl}
                 onClick={() => {
                   handlePlaceImage(getImageUrlOrFile(picture.imageUrl));
@@ -236,10 +237,12 @@ export default function Editor({ note }: NoteEditorType) {
 }
 
 const PicturePreview = ({
+  pictureId,
   imageUrl,
   onClick,
   onDelete,
 }: {
+  pictureId?: number | null;
   imageUrl: string;
   onClick: () => void;
   onDelete: () => void;
@@ -247,12 +250,13 @@ const PicturePreview = ({
   return (
     <div className="col position-relative">
       <div
-        className="position-absolute top-0 end-0 z-1 bg-dark rounded-circle me-3 mt-1 cursor-pointer"
+        className="position-absolute top-0 end-0 z-1 bg-dark rounded-circle me-3 mt-1 cursor-pointer text-light"
         onClick={onDelete}
       >
         <IconX />
       </div>
       <div
+        data-testid={`picture-preview-${pictureId ?? 'default'}`}
         role="button"
         onClick={onClick}
         className="ratio ratio-1x1 rounded-4 overflow-hidden cursor-pointer"
