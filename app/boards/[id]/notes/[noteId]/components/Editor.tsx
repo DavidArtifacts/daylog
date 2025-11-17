@@ -32,6 +32,11 @@ export default function Editor({ note }: NoteEditorType) {
 
   const { theme } = useTheme();
 
+  const loadPictures = useCallback(async () => {
+    const pictures = (await getPictures(note.id)) ?? [];
+    setPictures(pictures);
+  }, [note.id]);
+
   useEffect(() => {
     window.addEventListener('storage', (event) => {
       if (event.key === `note-${note.id}`) {
@@ -41,24 +46,21 @@ export default function Editor({ note }: NoteEditorType) {
         }
       }
     });
-
-    const loadPictures = async () => {
-      const pictures = await getPictures(note.id) ?? [];
-      setPictures(pictures);
-    };
-
     loadPictures();
-  }, [note.id]);
+  }, [note.id, loadPictures]);
 
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
     null
   );
 
-  const updateNoteHandler = useCallback(async (content: string) => {
-    if (!note) return;
-    note.content = content;
-    if (note) await updateNote(note);
-  }, [note]);
+  const updateNoteHandler = useCallback(
+    async (content: string) => {
+      if (!note) return;
+      note.content = content;
+      if (note) await updateNote(note);
+    },
+    [note]
+  );
 
   const debounceSave = useCallback(
     (content: string, callback: () => void) => {
@@ -118,8 +120,7 @@ export default function Editor({ note }: NoteEditorType) {
       resizeImage(file, 1920, 1080, async (resizedDataUrl) => {
         const imageUrl = await savePicture(note.id, resizedDataUrl);
         if (!imageUrl) return;
-        router.prefetch(`/boards/${note.boardsId}/notes/${note.id}`);
-        router.refresh();
+        await loadPictures();
       });
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -129,8 +130,7 @@ export default function Editor({ note }: NoteEditorType) {
   const handleDeletePicture = async (pictureId: number) => {
     try {
       await deletePicture(note.id, pictureId);
-      router.prefetch(`/boards/${note.boardsId}/notes/${note.id}`);
-      router.refresh();
+      await loadPictures();
     } catch (error) {
       console.error('Error deleting picture:', error);
     }
@@ -189,7 +189,6 @@ export default function Editor({ note }: NoteEditorType) {
                 },
                 onDelete: async () => {
                   await deleteImage(note.id, note.imageUrl);
-                  router.prefetch(`/boards/${note.boardsId}/notes/${note.id}`);
                   router.refresh();
                 },
               })}
@@ -206,7 +205,7 @@ export default function Editor({ note }: NoteEditorType) {
             ))}
           </div>
 
-          {pictures.length === 0 && (
+          {pictures.length === 0 && note.imageUrl === null && (
             <div className="d-flex gap-2 align-items-center text-muted w-full">
               <div>No pictures</div>
             </div>
@@ -245,7 +244,7 @@ const PicturePreview = ({
   pictureId?: number | null;
   imageUrl: string;
   onClick: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<void>;
 }) => {
   return (
     <div className="col position-relative">
